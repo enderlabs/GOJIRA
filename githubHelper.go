@@ -19,21 +19,6 @@ func setup(accessToken string) {
 	client = github.NewClient(tc)
 }
 
-//func createPullRequestReport(owner string, repo string, pullRequestNumber int) PullRequestReport {
-//	var pullRequestReport PullRequestReport
-//	pullRequest, _, _ := client.PullRequests.Get(ctx, owner, repo, pullRequestNumber)
-//	if pullRequest != nil {
-//		pullRequestReport.pullRequest = pullRequest
-//	}
-//	commits, _, err := client.PullRequests.ListCommits(ctx, owner, repo, pullRequestNumber, nil)
-//	if err != nil {
-//		println("ERROR comparing commits: ", err.Error())
-//		return pullRequestReport
-//	}
-//	pullRequestReport.tickets = createSomeShit(commits)
-//	return pullRequestReport
-//}
-
 func createCommitsComparisonReport(owner string, repo string, base string, head string) CommitsComparisonReport {
 	var commitsComparisonReport CommitsComparisonReport
 	commitsComparison, _, err := client.Repositories.CompareCommits(ctx, owner, repo, base, head)
@@ -45,7 +30,7 @@ func createCommitsComparisonReport(owner string, repo string, base string, head 
 		return commitsComparisonReport
 	}
 
-	commitsComparisonReport.tickets = createSomeShit(commitsComparison.Commits)
+	commitsComparisonReport.tickets = mapTickets(commitsComparison.Commits)
 	return commitsComparisonReport
 }
 
@@ -69,7 +54,7 @@ func createNewReleaseBranch(owner string, repo string, branchName string, sha st
 	return returnedReference
 }
 
-func createSomeShit(commits []github.RepositoryCommit) map[string][]*github.Commit {
+func mapTickets(commits []github.RepositoryCommit) map[string][]*github.Commit {
 	ticketMap := make(map[string][]*github.Commit)
 	if commits == nil {
 		return ticketMap
@@ -105,33 +90,16 @@ func createPullRequest(owner string, repo string, base *string, head *string, ti
 	return pullRequest
 }
 
-//func (pullRequestReport PullRequestReport) String() string {
-//	var pullRequestString = *pullRequestReport.pullRequest.Title
-//	for key, commits := range pullRequestReport.tickets {
-//		pullRequestString += "\n"
-//		pullRequestString += key
-//		for _, commit := range commits {
-//			pullRequestString += "\n    " + *commit.Message + " by: " + *commit.Author.Name
-//		}
-//	}
-//	return pullRequestString
-//}
-//
-//type PullRequestReport struct {
-//	pullRequest *github.PullRequest
-//	tickets     map[string][]*github.Commit
-//}
-
 func (commitsComparisonReport CommitsComparisonReport) String() string {
-	var pullRequestString = *commitsComparisonReport.commitsComparison.Status
+	var commitsComparisonString = *commitsComparisonReport.commitsComparison.Status
 	for key, commits := range commitsComparisonReport.tickets {
-		pullRequestString += "\n"
-		pullRequestString += key
+		commitsComparisonString += "\n"
+		commitsComparisonString += key
 		for _, commit := range commits {
-			pullRequestString += "\n    " + *commit.Message + " by: " + *commit.Author.Name
+			commitsComparisonString += "\n    " + *commit.Message + " by: " + *commit.Author.Name
 		}
 	}
-	return pullRequestString
+	return commitsComparisonString
 }
 
 type CommitsComparisonReport struct {
