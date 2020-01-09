@@ -9,11 +9,15 @@ import (
 	"os"
 	"encoding/json"
 	"bytes"
+	"regexp"
 
 	"github.com/kelseyhightower/envconfig"
 	"github.com/kr/pretty"
 	"github.com/nlopes/slack"
+	"github.com/andygrunwald/go-jira"
 )
+
+var currentTicket *jira.Issue
 
 // https://api.slack.com/slack-apps
 // https://api.slack.com/internal-integrations
@@ -33,6 +37,11 @@ type envConfig struct {
 	// ChannelID is slack channel ID where bot is working.
 	// Bot responses to the mention in this channel.
 	ChannelID string `envconfig:"CHANNEL_ID" required:"true"`
+
+	JiraUsername string `envconfig:"JIRA_USERNAME" required:"true"`
+	JiraPassword string `envconfig:"JIRA_PASSWORD" required:"true"`
+
+	GithubToken string `envconfig:"GITHUB_TOKEN" required:"true"`
 }
 
 type SlackListener struct {
@@ -69,6 +78,7 @@ func (s *SlackListener) handleMessageEvent(ev *slack.MessageEvent) error {
 // InteractionHandler handles interactive message response.
 type InteractionHandler struct {
 	slackClient       *slack.Client
+	jiraClient        *jira.Client
 	verificationToken string
 }
 
@@ -87,39 +97,68 @@ func makeDialog() *slack.Dialog {
 	ticketListElement.Optional = false
 	ticketListElement.Hint = "List of Teem Tickets"
 
-	projectSelectElement := &slack.DialogInputSelect{}
-	projectSelectElement.Label = "Select Project"
-	projectSelectElement.Name = "project"
-	projectSelectElement.Type = "select"
-	projectSelectElement.Optional = false
-	projectSelectElement.Value = "1"
-	projectSelectElement.Options = []slack.DialogSelectOption{
-		{Label: "iOS", Value: "1"},
-		{Label: "Android", Value: "2"},
-	}
-	projectSelectElement.SelectedOptions = []slack.DialogSelectOption{
-		{Label: "iOS", Value: "1"},
-	}
-
 	dialog.Elements = []slack.DialogElement{
-		projectSelectElement,
 		ticketListElement,
 	}
 
 	return dialog
 }
 
-func handleReleaseSlashCommand(command slack.SlashCommand, client *slack.Client, writer http.ResponseWriter) {
+func createRelease(slackClient *slack.Client, client *jira.Client, linkedTickets []string) (string, error) {
+	ticket, err := createIssue(client)
+	var msg string
+
+	if err != nil {
+		msg = fmt.Sprintf("Unable to create release: %s", err)
+	} else {
+		msg = fmt.Sprintf("Release created succesfully! Ticket link: https://teem-gojira.atlassian.net/browse/%s", ticket.Key)
+	}
+
+	fmt.Printf("Release creation result: %s\n", msg)
+
+	_, _, err = slackClient.PostMessage(
+		"CSBADECGG",
+		slack.MsgOptionText(msg, false))
+
+	currentTicket = ticket
+
+	go addTicketsToRelease(client, linkedTickets, ticket.Key)
+
+	fmt.Printf("RELEASE CREATED: %s\n", ticket.Key)
+	fmt.Printf("Error was: %s\n", err)
+
+	return ticket.Key, err
+}
+
+func handleReleaseSlashCommand(
+	command slack.SlashCommand,
+	client *slack.Client,
+	jiraClient *jira.Client,
+	writer http.ResponseWriter) {
+
       switch command.Text {
       case "create", "":
 	      var dialog = makeDialog()
 	      writer.Header().Add("Content-type", "application/json")
 	      writer.WriteHeader(http.StatusOK)
-	      fmt.Print("\n\n\n")
+
 	      if err := client.OpenDialog(command.TriggerID, *dialog); err != nil {
 		      fmt.Errorf("failed to post message: %s", err)
 	      }
+
 	      return
+
+      case "status":
+	      if currentTicket == nil {
+		      fmt.Printf("No")
+		      return
+	      }
+
+	      report := statusForIssue(jiraClient, currentTicket.Key)
+
+	      client.PostMessage(
+		      "CSBADECGG",
+		      slack.MsgOptionText(fmt.Sprintf("%s", report), false))
       default:
 	      client.PostEphemeral(
 		      command.ChannelID,
@@ -154,7 +193,7 @@ func (handler InteractionHandler) ServeHTTP(writer http.ResponseWriter, request 
 	if err == nil && command.Command != "" {
 	      switch command.Command {
 	      case "/release":
-		      handleReleaseSlashCommand(command, handler.slackClient, writer)
+		      handleReleaseSlashCommand(command, handler.slackClient, handler.jiraClient, writer)
 		      return
 	      default:
 	      }
@@ -176,14 +215,13 @@ func (handler InteractionHandler) ServeHTTP(writer http.ResponseWriter, request 
 		return
 	}
 
-	fmt.Printf("%# v", pretty.Formatter(dialogSubmission))
-	fmt.Printf("Project: %s\n", dialogSubmission.Submission["project"])
-	fmt.Printf("Tickets: %s\n", dialogSubmission.Submission["tickets"])
-	stuff := dialogSubmission.Submission["bwent"]
-	if stuff == "" {
-		fmt.Printf("Whoa it worked\n")
-		return
-	}
+	fmt.Print("\n\n\n")
+	ticketList := regexp.MustCompile("[\\s,]").Split(dialogSubmission.Submission["tickets"], -1)
+
+	fmt.Printf("%# v\n", pretty.Formatter(ticketList))
+
+	createRelease(handler.slackClient, handler.jiraClient, ticketList)
+
 }
 
 func main() {
@@ -197,6 +235,7 @@ func _main(args []string) int {
 		return 1
 	}
 
+
 	// Listening slack event and response
 	log.Printf("[INFO] Start slack event listening")
 	client := slack.New(env.BotToken)
@@ -207,11 +246,23 @@ func _main(args []string) int {
 	}
 	go slackListener.ListenAndResponse()
 
+	tp := jira.BasicAuthTransport{
+		Username: env.JiraUsername,
+		Password: env.JiraPassword,
+	}
+
+
+	jiraClient, err := jira.NewClient(tp.Client(), "https://teem-gojira.atlassian.net")
+	if err != nil {
+		panic(err)
+	}
+
 	// Register handler to receive interactive message
 	// responses from slack (kicked by user action)
 	http.Handle("/interaction", InteractionHandler{
 		verificationToken: env.VerificationToken,
 		slackClient:       client,
+		jiraClient:        jiraClient,
 	})
 
 	log.Printf("[INFO] Server listening on :%s", env.Port)

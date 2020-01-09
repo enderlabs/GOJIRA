@@ -10,20 +10,20 @@ import "github.com/google/go-github/github" // with go modules disabled
 var ctx context.Context
 var client *github.Client
 
-func main() {
-	setup("4ae373d0cc57fef0aa53463077599f5744bc1f30")
+// func main() {
+//	setup("4ae373d0cc57fef0aa53463077599f5744bc1f30")
 
-	//createNewReleaseBranch("RyanHurstTeem", "TestRepo", "release-branch", "b057e74c9b3aeb59ca3f5456acee0232c11a7d99")
-	createPullRequest(
-		"RyanHurstTeem",
-		"TestRepo",
-		github.String("release-branch"),
-		github.String("master"),
-		github.String("test PR"),
-		github.String("this is the body of the test PR"),
-	)
-	//println(createReleaseDocument("enderlabs", "android", 538).String())
-}
+//	//createNewReleaseBranch("RyanHurstTeem", "TestRepo", "release-branch", "b057e74c9b3aeb59ca3f5456acee0232c11a7d99")
+//	createPullRequest(
+//		"RyanHurstTeem",
+//		"TestRepo",
+//		github.String("release-branch"),
+//		github.String("master"),
+//		github.String("test PR"),
+//		github.String("this is the body of the test PR"),
+//	)
+//	//println(createReleaseDocument("enderlabs", "android", 538).String())
+// }
 
 func setup(accessToken string) {
 	ctx = context.Background()
