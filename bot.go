@@ -10,11 +10,13 @@ import (
 	"encoding/json"
 	"bytes"
 	"regexp"
+	"strings"
 
 	"github.com/kelseyhightower/envconfig"
 	"github.com/kr/pretty"
 	"github.com/nlopes/slack"
 	"github.com/andygrunwald/go-jira"
+	"github.com/google/go-github/github"
 )
 
 var currentTicket *jira.Issue
@@ -79,10 +81,11 @@ func (s *SlackListener) handleMessageEvent(ev *slack.MessageEvent) error {
 type InteractionHandler struct {
 	slackClient       *slack.Client
 	jiraClient        *jira.Client
+	gitClient         *github.Client
 	verificationToken string
 }
 
-func makeDialog() *slack.Dialog {
+func makeDialog(ticketList []string) *slack.Dialog {
 	dialog := &slack.Dialog{}
 	dialog.CallbackID = "release-create"
 	dialog.Title = "Create a Release"
@@ -96,6 +99,7 @@ func makeDialog() *slack.Dialog {
 	ticketListElement.Placeholder = "TEEM-1234\nTEEM-7890"
 	ticketListElement.Optional = false
 	ticketListElement.Hint = "List of Teem Tickets"
+	ticketListElement.Value = strings.Join(ticketList, "\n")
 
 	dialog.Elements = []slack.DialogElement{
 		ticketListElement,
@@ -104,7 +108,7 @@ func makeDialog() *slack.Dialog {
 	return dialog
 }
 
-func createRelease(slackClient *slack.Client, client *jira.Client, linkedTickets []string) (string, error) {
+func createRelease(slackClient *slack.Client, jiraClient *jira.Client, linkedTickets []string) (string, error) {
 	ticket, err := createIssue(client)
 	var msg string
 
@@ -122,7 +126,7 @@ func createRelease(slackClient *slack.Client, client *jira.Client, linkedTickets
 
 	currentTicket = ticket
 
-	go addTicketsToRelease(client, linkedTickets, ticket.Key)
+	go addTicketsToRelease(jiraClient, linkedTickets, ticket.Key)
 
 	fmt.Printf("RELEASE CREATED: %s\n", ticket.Key)
 	fmt.Printf("Error was: %s\n", err)
@@ -134,11 +138,14 @@ func handleReleaseSlashCommand(
 	command slack.SlashCommand,
 	client *slack.Client,
 	jiraClient *jira.Client,
+	gitClient *github.Client,
 	writer http.ResponseWriter) {
 
       switch command.Text {
       case "create", "":
-	      var dialog = makeDialog()
+	      report := createCommitsComparisonReport(gitClient, "RyanHurstTeem", "TestRepo", "master", "develop")
+
+	      var dialog = makeDialog(report.TicketList())
 	      writer.Header().Add("Content-type", "application/json")
 	      writer.WriteHeader(http.StatusOK)
 
@@ -193,7 +200,7 @@ func (handler InteractionHandler) ServeHTTP(writer http.ResponseWriter, request 
 	if err == nil && command.Command != "" {
 	      switch command.Command {
 	      case "/release":
-		      handleReleaseSlashCommand(command, handler.slackClient, handler.jiraClient, writer)
+		      handleReleaseSlashCommand(command, handler.slackClient, handler.jiraClient, handler.gitClient, writer)
 		      return
 	      default:
 	      }
@@ -251,11 +258,12 @@ func _main(args []string) int {
 		Password: env.JiraPassword,
 	}
 
-
 	jiraClient, err := jira.NewClient(tp.Client(), "https://teem-gojira.atlassian.net")
 	if err != nil {
 		panic(err)
 	}
+
+	gitClient := connect(env.GithubToken)
 
 	// Register handler to receive interactive message
 	// responses from slack (kicked by user action)
@@ -263,6 +271,7 @@ func _main(args []string) int {
 		verificationToken: env.VerificationToken,
 		slackClient:       client,
 		jiraClient:        jiraClient,
+		gitClient:         gitClient,
 	})
 
 	log.Printf("[INFO] Server listening on :%s", env.Port)

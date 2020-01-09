@@ -8,18 +8,18 @@ import (
 import "github.com/google/go-github/github" // with go modules disabled
 
 var ctx context.Context
-var client *github.Client
 
-func setup(accessToken string) {
+func connect(accessToken string) *github.Client {
 	ctx = context.Background()
 	ts := oauth2.StaticTokenSource(
 		&oauth2.Token{AccessToken: accessToken},
 	)
 	tc := oauth2.NewClient(ctx, ts)
-	client = github.NewClient(tc)
+	client := github.NewClient(tc)
+	return client
 }
 
-func createCommitsComparisonReport(owner string, repo string, base string, head string) CommitsComparisonReport {
+func createCommitsComparisonReport(client *github.Client, owner string, repo string, base string, head string) CommitsComparisonReport {
 	var commitsComparisonReport CommitsComparisonReport
 	commitsComparison, _, err := client.Repositories.CompareCommits(ctx, owner, repo, base, head)
 	if commitsComparison != nil {
@@ -34,7 +34,7 @@ func createCommitsComparisonReport(owner string, repo string, base string, head 
 	return commitsComparisonReport
 }
 
-func createNewReleaseBranch(owner string, repo string, branchName string, sha string) *github.Reference{
+func createNewReleaseBranch(client *github.Client, owner string, repo string, branchName string, sha string) *github.Reference{
 	gitObject := &github.GitObject{
 		Type: nil,
 		URL:  nil,
@@ -59,7 +59,7 @@ func mapTickets(commits []github.RepositoryCommit) map[string][]*github.Commit {
 	if commits == nil {
 		return ticketMap
 	}
-	r, _ := regexp.Compile("(?i)teem-([0-9]+)")
+	r, _ := regexp.Compile("(?i)or-([0-9]+)")
 	for _, commit := range commits {
 		commitMessage := *commit.Commit.Message
 		ticketNumber := r.FindString(commitMessage)
@@ -73,7 +73,7 @@ func mapTickets(commits []github.RepositoryCommit) map[string][]*github.Commit {
 	return ticketMap
 }
 
-func createPullRequest(owner string, repo string, base *string, head *string, title *string, body *string) *github.PullRequest {
+func createPullRequest(client *github.Client, owner string, repo string, base *string, head *string, title *string, body *string) *github.PullRequest {
 	pull := &github.NewPullRequest{
 		Title:               title,
 		Body:                body,
@@ -100,6 +100,15 @@ func (commitsComparisonReport CommitsComparisonReport) String() string {
 		}
 	}
 	return commitsComparisonString
+}
+
+func (commitsComparisonReport CommitsComparisonReport) TicketList() []string {
+	keys := make([]string, 0, len(commitsComparisonReport.tickets))
+	for k := range commitsComparisonReport.tickets {
+		keys = append(keys, k)
+	}
+
+	return keys
 }
 
 type CommitsComparisonReport struct {
