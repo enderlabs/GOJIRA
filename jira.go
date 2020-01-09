@@ -133,10 +133,18 @@ func firstBlockedBySecond(firstKey string, secondKey string) {
      fmt.Printf("link error: %s\n", error)
 }
 
+func addTicketsToRelease(tickets []string, release string) {
+     for _, ticket := range tickets {
+	  firstBlockedBySecond(release, ticket)
+     }
+}
+
 //func main() {
 //     firstBlockedBySecond("OR-9", "OR-10")
 //     createIssue()
 //     report := statusForIssue("OR-10")
 //     fmt.Printf("%s", report)
+//     tickets := []string{"OR-9", "OR-15", "OR-16", "OR-17"}
+//     addTicketsToRelease(tickets, "OR-10")
 //}
 
