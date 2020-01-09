@@ -62,12 +62,12 @@ func mapTickets(commits []github.RepositoryCommit) map[string][]*github.Commit {
 	r, _ := regexp.Compile("(?i)teem-([0-9]+)")
 	for _, commit := range commits {
 		commitMessage := *commit.Commit.Message
-		ticketNumber := r.FindStringSubmatch(commitMessage)
-		if ticketNumber != nil {
-			if ticketMap[ticketNumber[1]] == nil {
-				ticketMap[ticketNumber[1]] = []*github.Commit{}
+		ticketNumber := r.FindString(commitMessage)
+		if ticketNumber != "" {
+			if ticketMap[ticketNumber] == nil {
+				ticketMap[ticketNumber] = []*github.Commit{}
 			}
-			ticketMap[ticketNumber[1]] = append(ticketMap[ticketNumber[1]], commit.Commit)
+			ticketMap[ticketNumber] = append(ticketMap[ticketNumber], commit.Commit)
 		}
 	}
 	return ticketMap
