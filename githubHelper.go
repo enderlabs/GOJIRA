@@ -34,7 +34,7 @@ func createCommitsComparisonReport(client *github.Client, owner string, repo str
 	return commitsComparisonReport
 }
 
-func createNewReleaseBranch(client *github.Client, owner string, repo string, branchName string, sha string) *github.Reference{
+func createNewReleaseBranch(client *github.Client, owner string, repo string, branchName string, sha string) *github.Reference {
 	gitObject := &github.GitObject{
 		Type: nil,
 		URL:  nil,
@@ -113,5 +113,5 @@ func (commitsComparisonReport CommitsComparisonReport) TicketList() []string {
 
 type CommitsComparisonReport struct {
 	commitsComparison *github.CommitsComparison
-	tickets     map[string][]*github.Commit
+	tickets           map[string][]*github.Commit
 }

@@ -1,22 +1,22 @@
 package main
 
 import (
+	"bytes"
+	"encoding/json"
 	"fmt"
+	"io/ioutil"
 	"log"
 	"net/http"
 	"net/url"
-	"io/ioutil"
 	"os"
-	"encoding/json"
-	"bytes"
 	"regexp"
 	"strings"
 
+	"github.com/andygrunwald/go-jira"
+	"github.com/google/go-github/github"
 	"github.com/kelseyhightower/envconfig"
 	"github.com/kr/pretty"
 	"github.com/nlopes/slack"
-	"github.com/andygrunwald/go-jira"
-	"github.com/google/go-github/github"
 )
 
 var currentTicket *jira.Issue
@@ -141,40 +141,39 @@ func handleReleaseSlashCommand(
 	gitClient *github.Client,
 	writer http.ResponseWriter) {
 
-      switch command.Text {
-      case "create", "":
-	      report := createCommitsComparisonReport(gitClient, "RyanHurstTeem", "TestRepo", "master", "develop")
+	switch command.Text {
+	case "create", "":
+		report := createCommitsComparisonReport(gitClient, "RyanHurstTeem", "TestRepo", "master", "develop")
 
-	      var dialog = makeDialog(report.TicketList())
-	      writer.Header().Add("Content-type", "application/json")
-	      writer.WriteHeader(http.StatusOK)
+		var dialog = makeDialog(report.TicketList())
+		writer.Header().Add("Content-type", "application/json")
+		writer.WriteHeader(http.StatusOK)
 
-	      if err := client.OpenDialog(command.TriggerID, *dialog); err != nil {
-		      fmt.Errorf("failed to post message: %s", err)
-	      }
+		if err := client.OpenDialog(command.TriggerID, *dialog); err != nil {
+			fmt.Errorf("failed to post message: %s", err)
+		}
 
-	      return
+		return
 
-      case "status":
-	      if currentTicket == nil {
-		      fmt.Printf("No")
-		      return
-	      }
+	case "status":
+		if currentTicket == nil {
+			fmt.Printf("No")
+			return
+		}
 
-	      report := statusForIssue(jiraClient, currentTicket.Key)
+		report := statusForIssue(jiraClient, currentTicket.Key)
 
-	      client.PostMessage(
-		      "CSBADECGG",
-		      slack.MsgOptionText(fmt.Sprintf("%s", report), false))
-      default:
-	      client.PostEphemeral(
-		      command.ChannelID,
-		      command.UserID,
-		      slack.MsgOptionText(fmt.Sprintf("Invalid command: \"%s\".", command.Text), false))
-	      return
-      }
+		client.PostMessage(
+			"CSBADECGG",
+			slack.MsgOptionText(fmt.Sprintf("%s", report), false))
+	default:
+		client.PostEphemeral(
+			command.ChannelID,
+			command.UserID,
+			slack.MsgOptionText(fmt.Sprintf("Invalid command: \"%s\".", command.Text), false))
+		return
+	}
 }
-
 
 func (handler InteractionHandler) ServeHTTP(writer http.ResponseWriter, request *http.Request) {
 	if request.Method != http.MethodPost {
@@ -198,12 +197,12 @@ func (handler InteractionHandler) ServeHTTP(writer http.ResponseWriter, request 
 	fmt.Printf("%# v\n", pretty.Formatter(request.PostForm))
 
 	if err == nil && command.Command != "" {
-	      switch command.Command {
-	      case "/release":
-		      handleReleaseSlashCommand(command, handler.slackClient, handler.jiraClient, handler.gitClient, writer)
-		      return
-	      default:
-	      }
+		switch command.Command {
+		case "/release":
+			handleReleaseSlashCommand(command, handler.slackClient, handler.jiraClient, handler.gitClient, writer)
+			return
+		default:
+		}
 	}
 
 	fmt.Printf("DATA: \"%s\"\n", string(buf))
@@ -241,7 +240,6 @@ func _main(args []string) int {
 		log.Printf("[ERROR] Failed to process env var: %s", err)
 		return 1
 	}
-
 
 	// Listening slack event and response
 	log.Printf("[INFO] Start slack event listening")
