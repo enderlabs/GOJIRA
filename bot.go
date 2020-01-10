@@ -109,7 +109,7 @@ func makeDialog(ticketList []string) *slack.Dialog {
 }
 
 func createRelease(slackClient *slack.Client, jiraClient *jira.Client, linkedTickets []string) (string, error) {
-	ticket, err := createIssue(client)
+	ticket, err := createIssue(jiraClient)
 	var msg string
 
 	if err != nil {
@@ -154,7 +154,15 @@ func handleReleaseSlashCommand(
 	      }
 
 	      return
-
+	  case "pr":
+		  //currentTicket.Key todo this is hacky
+		  sha := getCommitShaFromBranchName(gitClient, "RyanHurstTeem", "TestRepo", "develop")
+		  createNewReleaseBranch(gitClient, "RyanHurstTeem", "TestRepo", currentTicket.Key, sha)
+		  report := createCommitsComparisonReport(gitClient, "RyanHurstTeem", "TestRepo", "master", currentTicket.Key)
+		  pr := createPullRequest(gitClient, "RyanHurstTeem", "TestRepo", github.String("master"), github.String(currentTicket.Key), github.String("Release: " + currentTicket.Key), github.String(report.String()))
+		  client.PostMessage(
+			  "CSBADECGG",
+			  slack.MsgOptionText(fmt.Sprintf("created PR: %s", *pr.Title), false))
       case "status":
 	      if currentTicket == nil {
 		      fmt.Printf("No")

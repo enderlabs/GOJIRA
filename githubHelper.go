@@ -34,6 +34,11 @@ func createCommitsComparisonReport(client *github.Client, owner string, repo str
 	return commitsComparisonReport
 }
 
+func getCommitShaFromBranchName(client *github.Client, owner string, repo string, branchName string) string {
+	branch, _, _:= client.Repositories.GetBranch(ctx, owner, repo, branchName)
+	return *branch.Commit.SHA
+}
+
 func createNewReleaseBranch(client *github.Client, owner string, repo string, branchName string, sha string) *github.Reference{
 	gitObject := &github.GitObject{
 		Type: nil,
