@@ -109,7 +109,7 @@ func makeDialog(ticketList []string) *slack.Dialog {
 }
 
 func createRelease(slackClient *slack.Client, jiraClient *jira.Client, linkedTickets []string) (string, error) {
-	ticket, err := createIssue(client)
+	ticket, err := createIssue(jiraClient)
 	var msg string
 
 	if err != nil {
